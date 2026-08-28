@@ -567,6 +567,11 @@ async function runFetch(autoSave = false) {
   logFetch('Starting Morningstar fetch…');
   const newPrices = { ...getLatestPrices() };
   let ok = 0, fail = 0;
+  } else {
+  
+  logFetch(`${h.symbol}: FAILED (Morningstar blocked by browser CORS / proxy)`);
+  fail++;
+}
 
   for (const h of state.holdings) {
     if (h.type === 'fund') {

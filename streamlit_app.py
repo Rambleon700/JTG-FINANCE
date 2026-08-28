@@ -81,7 +81,7 @@ else:
                         "Quantity": quantity_input,
                         "Purchase Price": price_input
                     }])
-                    df_current = pd.concat([df_current, new_row], ignore_index=index)
+                    df_current = pd.concat([df_current, new_row], ignore_index=True)
                     st.sidebar.success(f"Added {ticker_input}!")
                 
                 st.session_state.portfolio_df = df_current

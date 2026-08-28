@@ -1,0 +1,28 @@
+if submit_button:
+    if ticker_input and quantity_input > 0:
+        df_current = st.session_state.portfolio_df.copy()
+        
+        # Check if ticker already exists
+        if not df_current.empty and ticker_input in df_current["Ticker"].values:
+            # Update existing row
+            df_current.loc[df_current["Ticker"] == ticker_input, ["Type", "Quantity", "Purchase Price"]] = [
+                asset_type, quantity_input, price_input
+            ]
+            st.sidebar.success(f"Updated {ticker_input}!")
+        else:
+            # Append new position
+            new_row = pd.DataFrame([{
+                "Ticker": ticker_input,
+                "Type": asset_type,
+                "Quantity": quantity_input,
+                "Purchase Price": price_input
+            }])
+            # FIXED HERE: ignore_index=True
+            df_current = pd.concat([df_current, new_row], ignore_index=True)
+            st.sidebar.success(f"Added {ticker_input}!")
+        
+        st.session_state.portfolio_df = df_current
+        save_portfolio_df(df_current)
+        st.rerun()
+    else:
+        st.sidebar.error("Please provide a valid ticker and quantity.")

@@ -482,21 +482,23 @@ function fullRender() {
   if (!document.getElementById('tab-charts').classList.contains('hidden')) updateCharts();
 }
 
-/* ---------- Morningstar fetch ---------- */
+/* Morningstar IDs – try multiple token formats */
+const MORNINGSTAR_IDS = {
+  'VWRP': [
+    '0P0001I3RZ]22]0]ETEXG$XLON',  // from Morningstar SecurityToken
+    '0P0001I3RZ]2]0]ETEXG$XLON',
+    '0P0001I3RZ'
+  ]
+};
+
 async function fetchMorningstarPrice(symbol) {
   const s = (symbol || '').toUpperCase().trim();
-  const msId = MORNINGSTAR_IDS[s];
-  if (!msId) return null;
+  const ids = MORNINGSTAR_IDS[s];
+  if (!ids || !ids.length) return null;
 
   const start = new Date();
-  start.setDate(start.getDate() - 14);
+  start.setDate(start.getDate() - 21);
   const startDate = start.toISOString().slice(0, 10);
-
-  const target =
-    'https://tools.morningstar.co.uk/api/rest.svc/timeseries_price/t92wz0sj7c' +
-    '?currencyId=GBP&idtype=Morningstar&frequency=daily&outputType=JSON' +
-    '&startDate=' + encodeURIComponent(startDate) +
-    '&id=' + encodeURIComponent(msId);
 
   const proxies = [
     (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
@@ -504,33 +506,57 @@ async function fetchMorningstarPrice(symbol) {
     (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
   ];
 
-  for (const makeUrl of proxies) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(makeUrl(target), {
-        cache: 'no-store',
-        signal: controller.signal,
-        headers: { 'Accept': 'application/json' }
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
+  for (const msId of ids) {
+    const target =
+      'https://tools.morningstar.co.uk/api/rest.svc/timeseries_price/t92wz0sj7c' +
+      '?currencyId=GBP&idtype=Morningstar&frequency=daily&outputType=JSON' +
+      '&startDate=' + encodeURIComponent(startDate) +
+      '&id=' + encodeURIComponent(msId);
 
-      const data = await res.json();
-      let details =
-        data?.TimeSeries?.Security?.[0]?.HistoryDetail ||
-        data?.Security?.[0]?.HistoryDetail ||
-        data?.HistoryDetail ||
-        (Array.isArray(data) ? data : null);
+    for (const makeUrl of proxies) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(makeUrl(target), {
+          cache: 'no-store',
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json, text/plain, */*' }
+        });
+        clearTimeout(timer);
 
-      if (!details || !details.length) continue;
+        if (!res.ok) continue;
+        const text = await res.text();
+        if (!text || text.length < 20) continue;
 
-      for (let i = details.length - 1; i >= 0; i--) {
-        const row = details[i];
-        let price = row.Value ?? row.value ?? row.Close ?? row.close ?? (Array.isArray(row) ? row[1] : null);
-        if (price != null && !isNaN(Number(price))) return Number(price);
+        let data;
+        try { data = JSON.parse(text); } catch { continue; }
+
+        let details =
+          data?.TimeSeries?.Security?.[0]?.HistoryDetail ||
+          data?.Security?.[0]?.HistoryDetail ||
+          data?.HistoryDetail ||
+          (Array.isArray(data) ? data : null);
+
+        if (!details || !details.length) continue;
+
+        for (let i = details.length - 1; i >= 0; i--) {
+          const row = details[i];
+          let price =
+            row.Value ?? row.value ?? row.Close ?? row.close ??
+            (Array.isArray(row) ? row[1] : null);
+
+          if (price == null || isNaN(Number(price))) continue;
+          price = Number(price);
+
+          // Morningstar often quotes UK ETFs in pence (GBX)
+          if (price > 500) price = price / 100;
+
+          return price;
+        }
+      } catch (e) {
+        /* try next */
       }
-    } catch (e) { /* try next proxy */ }
+    
   }
   return null;
 }

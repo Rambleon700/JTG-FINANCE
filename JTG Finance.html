@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTG Portfolio Tracker</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><path d='M20 30 H40 M30 30 V65 C30 75 20 75 15 70' stroke='%233b82f6' stroke-width='8' stroke-linecap='round' fill='none'/><path d='M45 30 H65 M55 30 V75' stroke='%233b82f6' stroke-width='8' stroke-linecap='round' fill='none'/><path d='M72 52 C72 35 90 35 90 50 C90 75 72 75 72 60 H85' stroke='%233b82f6' stroke-width='8' stroke-linecap='round' fill='none'/></svg>">
+    <style>
+        :root[data-theme="dark"] {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --input-bg: #0f172a;
+            --gain: #22c55e;
+            --loss: #ef4444;
+            --accent: #3b82f6;
+        }
+
+        :root[data-theme="light"] {
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --input-bg: #f1f5f9;
+            --gain: #16a34a;
+            --loss: #dc2626;
+            --accent: #2563eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 1rem; transition: background 0.2s, color 0.2s; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .brand { display: flex; align-items: center; gap: 0.75rem; }
+        .brand svg { width: 36px; height: 36px; fill: var(--accent); }
+        h1 { font-size: 1.5rem; }
+        
+        .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+        .btn, select.time-select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); padding: 0.5rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn:hover, select.time-select:hover { border-color: var(--accent); }
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { opacity: 0.9; }
+
+        /* Summary Dashboard */
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .summary-card { background: var(--card-bg); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); }
+        .summary-card label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .summary-card .value { font-size: 1.5rem; font-weight: bold; }
+
+        /* Charts Section */
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .chart-card { background: var(--card-bg); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; }
+        .chart-card.full-width { grid-column: 1 / -1; }
+        .chart-card-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+        .chart-card h2 { font-size: 1rem; color: var(--text-muted); text-align: left; }
+        .controls-group { display: flex; gap: 0.5rem; }
+        canvas { max-width: 100%; height: auto; }
+
+        /* Table Area */
+        .table-container { overflow-x: auto; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 750px; }
+        th, td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+        th { background: rgba(0,0,0,0.05); color: var(--text-muted); font-size: 0.85rem; }
+        
+        input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 4px; width: 100%; max-width: 110px; }
+        input[type="text"] { max-width: 120px; text-transform: uppercase; }
+        input[type="date"] { max-width: 140px; }
+
+        .gain { color: var(--gain); font-weight: 600; }
+        .loss { color: var(--loss); font-weight: 600; }
+
+        /* Manual Entry Card */
+        .entry-card { background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); padding: 1.25rem; margin-bottom: 1.5rem; }
+        .entry-card h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 1rem; }
+        .entry-grid-main { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+        .entry-field { display: flex; flex-direction: column; gap: 0.3rem; }
+        .entry-field label { font-size: 0.8rem; color: var(--text-muted); }
+        .slots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <svg viewBox="0 0 100 100">
+                    <rect width="100" height="100" rx="20" fill="currentColor" fill-opacity="0.15"/>
+                    <path d="M20 30 H40 M30 30 V65 C30 75 20 75 15 70" stroke="currentColor" stroke-width="8" stroke-linecap="round" fill="none"/>
+                    <path d="M45 30 H65 M55 30 V75" stroke="currentColor" stroke-width="8" stroke-linecap="round" fill="none"/>
+                    <path d="M72 52 C72 35 90 35 90 50 C90 75 72 75 72 60 H85" stroke="currentColor" stroke-width="8" stroke-linecap="round" fill="none"/>
+                </svg>
+                <h1>JTG Portfolio Tracker</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn" onclick="exportJSON()">Export JSON</button>
+                <button class="btn" onclick="document.getElementById('importFile').click()">Import JSON</button>
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importJSON(event)">
+                <button class="btn" id="themeBtn" onclick="toggleTheme()">Light Mode</button>
+            </div>
+        </header>
+
+        <section class="summary-grid">
+            <div class="summary-card">
+                <label>Total Invested</label>
+                <div class="value" id="totalInvested">£0.00</div>
+            </div>
+            <div class="summary-card">
+                <label>Portfolio Value</label>
+                <div class="value" id="totalValue">£0.00</div>
+            </div>
+            <div class="summary-card">
+                <label>Total Gain/Loss</label>
+                <div class="value" id="totalGainLoss">£0.00 (0.00%)</div>
+            </div>
+        </section>
+
+        <section class="charts-grid">
+            <div class="chart-card full-width">
+                <div class="chart-card-header">
+                    <h2>Total Portfolio Performance</h2>
+                    <select id="performanceTimeframe" class="time-select" onchange="drawPerformanceChart()">
+                        <option value="ALL">All Time</option>
+                        <option value="6M">6 Months</option>
+                        <option value="1M">1 Month</option>
+                        <option value="1D">1 Day</option>
+                    </select>
+                </div>
+                <canvas id="performanceChart" width="1000" height="250"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Asset Allocation (£ Value)</h2>
+                <canvas id="allocationChart" width="280" height="200"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Holdings Comparison (Invested vs Current)</h2>
+                <canvas id="comparisonChart" width="350" height="200"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Gain / Loss by Holding (£)</h2>
+                <canvas id="gainLossChart" width="350" height="200"></canvas>
+            </div>
+        </section>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker/Name</th>
+                        <th>Shares</th>
+                        <th>Total Cost (£)</th>
+                        <th>Avg Buy Price</th>
+                        <th>Current Price (£)</th>
+                        <th>Current Value</th>
+                        <th>Gain/Loss (£)</th>
+                        <th>Gain/Loss (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolioBody"></tbody>
+            </table>
+        </div>
+
+        <section class="charts-grid">
+            <div class="chart-card full-width">
+                <div class="chart-card-header">
+                    <h2>Individual Slot Performance (Gain/Loss £)</h2>
+                    <div class="controls-group">
+                        <select id="slotSelect" class="time-select" onchange="drawSlotChart()">
+                            </select>
+                        <select id="slotTimeframe" class="time-select" onchange="drawSlotChart()">
+                            <option value="ALL">All Time</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1M">1 Month</option>
+                            <option value="1D">1 Day</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="slotChart" width="1000" height="250"></canvas>
+            </div>
+        </section>
+
+        <section class="entry-card">
+            <h2>Add Historical Snapshot (From PDFs)</h2>
+            <div class="entry-grid-main">
+                <div class="entry-field">
+                    <label>Snapshot Date</label>
+                    <input type="date" id="histDate">
+                </div>
+                <div class="entry-field">
+                    <label>Total Portfolio Value (£)</label>
+                    <input type="number" step="any" id="histTotalValue" placeholder="0.00">
+                </div>
+                <button class="btn btn-primary" style="margin-top: auto;" onclick="addManualSnapshot()">Save Snapshot</button>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Slot Gain / Loss Amounts (£):</div>
+            <div class="slots-grid" id="slotsInputContainer">
+                </div>
+        </section>
+    </div>
+
+    <script>
+        const ROWS = 10;
+        const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308', '#6366f1', '#14b8a6'];
+        const defaultData = Array(ROWS).fill(null).map(() => ({ ticker: '', shares: '', totalCost: '', currentPrice: '' }));
+        let portfolioData = JSON.parse(localStorage.getItem('folio_data')) || defaultData;
+        let historyData = JSON.parse(localStorage.getItem('folio_history')) || [];
+        
+        while(portfolioData.length < ROWS) portfolioData.push({ ticker: '', shares: '', totalCost: '', currentPrice: '' });
+
+        function init() {
+            const savedTheme = localStorage.getItem('folio_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+
+            document.getElementById('histDate').valueAsDate = new Date();
+
+            buildTableDOM();
+            buildSlotInputs();
+            updateSlotDropdown();
+            updateCalculations();
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const target = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', target);
+            document.getElementById('themeBtn').textContent = target === 'dark' ? 'Light Mode' : 'Dark Mode';
+            localStorage.setItem('folio_theme', target);
+            updateCalculations();
+        }
+
+        function formatGBP(val) {
+            return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(val);
+        }
+
+        function buildTableDOM() {
+            const tbody = document.getElementById('portfolioBody');
+            tbody.innerHTML = '';
+
+            portfolioData.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-row-index', idx);
+                tr.innerHTML = `
+                    <td><input type="text" class="input-ticker" value="${row.ticker || ''}" oninput="updateRow(${idx}, 'ticker', this.value)" placeholder="Slot ${idx + 1}"></td>
+                    <td><input type="number" step="any" class="input-shares" value="${row.shares || ''}" oninput="updateRow(${idx}, 'shares', this.value)" placeholder="0"></td>
+                    <td><input type="number" step="any" class="input-totalCost" value="${row.totalCost || ''}" oninput="updateRow(${idx}, 'totalCost', this.value)" placeholder="0.00"></td>
+                    <td class="cell-buy-price">£0.00</td>
+                    <td><input type="number" step="any" class="input-currentPrice" value="${row.currentPrice || ''}" oninput="updateRow(${idx}, 'currentPrice', this.value)" placeholder="0.00"></td>
+                    <td class="cell-val">£0.00</td>
+                    <td class="cell-gl">£0.00</td>
+                    <td class="cell-gl-pct">0.00%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function buildSlotInputs() {
+            const container = document.getElementById('slotsInputContainer');
+            container.innerHTML = '';
+            for(let i = 0; i < ROWS; i++) {
+                const div = document.createElement('div');
+                div.className = 'entry-field';
+                div.innerHTML = `
+                    <label id="slotLabel${i}">Slot ${i + 1}</label>
+                    <input type="number" step="any" class="hist-slot-val" data-slot="${i}" placeholder="0.00">
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        function updateSlotDropdown() {
+            const select = document.getElementById('slotSelect');
+            const currentSelected = select.value || "0";
+            select.innerHTML = '';
+
+            portfolioData.forEach((row, idx) => {
+                const name = row.ticker ? row.ticker.toUpperCase() : `Slot ${idx + 1}`;
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = `Slot ${idx + 1}: ${name}`;
+                select.appendChild(opt);
+
+                const labelEl = document.getElementById(`slotLabel${idx}`);
+                if (labelEl) labelEl.textContent = name;
+            });
+
+            select.value = currentSelected;
+        }
+
+        function updateRow(index, field, value) {
+            portfolioData[index][field] = value;
+            localStorage.setItem('folio_data', JSON.stringify(portfolioData));
+            if (field === 'ticker') updateSlotDropdown();
+            updateCalculations();
+        }
+
+        function logHistory(totalValue, slotGainLosses) {
+            const today = new Date().toISOString().slice(0, 10);
+            const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            
+            const entryData = { 
+                date: today, 
+                time: time, 
+                value: totalValue, 
+                slots: slotGainLosses,
+                timestamp: Date.now() 
+            };
+
+            const existingIndex = historyData.findIndex(h => h.date === today);
+            if (existingIndex >= 0) {
+                historyData[existingIndex] = entryData;
+            } else {
+                historyData.push(entryData);
+            }
+
+            historyData.sort((a, b) => a.timestamp - b.timestamp);
+            localStorage.setItem('folio_history', JSON.stringify(historyData));
+        }
+
+        function addManualSnapshot() {
+            const dateInput = document.getElementById('histDate').value;
+            const valueInput = parseFloat(document.getElementById('histTotalValue').value) || 0;
+
+            if (!dateInput) {
+                alert('Please select a date.');
+                return;
+            }
+
+            const slotInputs = document.querySelectorAll('.hist-slot-val');
+            const slots = [];
+            slotInputs.forEach(input => {
+                slots.push(parseFloat(input.value) || 0);
+            });
+
+            const timestamp = Date.parse(dateInput);
+            const entryData = {
+                date: dateInput,
+                time: "12:00",
+                value: valueInput,
+                slots: slots,
+                timestamp: timestamp
+            };
+
+            const existingIndex = historyData.findIndex(h => h.date === dateInput);
+            if (existingIndex >= 0) {
+                historyData[existingIndex] = entryData;
+            } else {
+                historyData.push(entryData);
+            }
+
+            historyData.sort((a, b) => a.timestamp - b.timestamp);
+            localStorage.setItem('folio_history', JSON.stringify(historyData));
+
+            drawPerformanceChart();
+            drawSlotChart();
+
+            document.getElementById('histTotalValue').value = '';
+            slotInputs.forEach(input => input.value = '');
+            alert(`Snapshot for ${dateInput} saved!`);
+        }
+
+        function updateCalculations() {
+            let totalInvested = 0;
+            let totalValue = 0;
+            const activeHoldings = [];
+            const slotGainLosses = [];
+
+            portfolioData.forEach((row, idx) => {
+                const shares = parseFloat(row.shares) || 0;
+                const invested = parseFloat(row.totalCost) || 0;
+                const currentPrice = parseFloat(row.currentPrice) || 0;
+
+                const buyPrice = shares > 0 ? invested / shares : 0;
+                const value = shares * currentPrice;
+                const gainLoss = value - invested;
+                const gainLossPct = invested > 0 ? (gainLoss / invested) * 100 : 0;
+
+                totalInvested += invested;
+                totalValue += value;
+                slotGainLosses.push(gainLoss);
+
+                const tr = document.querySelector(`tr[data-row-index="${idx}"]`);
+                if (tr) {
+                    tr.querySelector('.cell-buy-price').textContent = formatGBP(buyPrice);
+                    tr.querySelector('.cell-val').textContent = formatGBP(value);
+                    
+                    const glCell = tr.querySelector('.cell-gl');
+                    glCell.textContent = formatGBP(gainLoss);
+                    glCell.className = `cell-gl ${gainLoss >= 0 ? 'gain' : 'loss'}`;
+
+                    const glPctCell = tr.querySelector('.cell-gl-pct');
+                    glPctCell.textContent = `${gainLossPct.toFixed(2)}%`;
+                    glPctCell.className = `cell-gl-pct ${gainLossPct >= 0 ? 'gain' : 'loss'}`;
+                }
+
+                if (shares > 0 || row.ticker) {
+                    activeHoldings.push({
+                        label: (row.ticker || `Slot ${idx + 1}`).toUpperCase(),
+                        invested,
+                        value,
+                        gainLoss,
+                        color: CHART_COLORS[idx % CHART_COLORS.length]
+                    });
+                }
+            });
+
+            const totalGainLoss = totalValue - totalInvested;
+            const totalGainLossPct = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
+
+            document.getElementById('totalInvested').textContent = formatGBP(totalInvested);
+            document.getElementById('totalValue').textContent = formatGBP(totalValue);
+            
+            const totalGLContainer = document.getElementById('totalGainLoss');
+            totalGLContainer.textContent = `${formatGBP(totalGainLoss)} (${totalGainLossPct.toFixed(2)}%)`;
+            totalGLContainer.className = `value ${totalGainLoss >= 0 ? 'gain' : 'loss'}`;
+
+            if (totalValue > 0 || totalInvested > 0) {
+                logHistory(totalValue, slotGainLosses);
+            }
+
+            drawPerformanceChart();
+            drawSlotChart();
+            drawAllocationChart(activeHoldings, totalValue);
+            drawComparisonChart(activeHoldings);
+            drawGainLossChart(activeHoldings);
+        }
+
+        /* Export & Import Capabilities */
+        function exportJSON() {
+            const exportObject = {
+                portfolio: portfolioData,
+                history: historyData
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject, null, 2));
+            const downloadAnchor = document.createElement('a');
+            const fileName = `jtg_portfolio_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", fileName);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importJSON(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    let importedPortfolio = Array.isArray(imported) ? imported : imported.portfolio;
+                    
+                    if (importedPortfolio) {
+                        portfolioData = importedPortfolio;
+                        while(portfolioData.length < ROWS) portfolioData.push({ ticker: '', shares: '', totalCost: '', currentPrice: '' });
+                        localStorage.setItem('folio_data', JSON.stringify(portfolioData));
+
+                        if (imported.history && Array.isArray(imported.history)) {
+                            historyData = imported.history;
+                            localStorage.setItem('folio_history', JSON.stringify(historyData));
+                        }
+                        
+                        portfolioData.forEach((row, idx) => {
+                            const tr = document.querySelector(`tr[data-row-index="${idx}"]`);
+                            if (tr) {
+                                tr.querySelector('.input-ticker').value = row.ticker || '';
+                                tr.querySelector('.input-shares').value = row.shares || '';
+                                tr.querySelector('.input-totalCost').value = row.totalCost || (row.buyPrice ? (parseFloat(row.buyPrice) * parseFloat(row.shares) || '') : '');
+                                tr.querySelector('.input-currentPrice').value = row.currentPrice || '';
+                            }
+                        });
+                        updateSlotDropdown();
+                        updateCalculations();
+                        alert('Portfolio successfully imported!');
+                    } else {
+                        alert('Invalid JSON file format.');
+                    }
+                } catch (err) {
+                    alert('Error parsing JSON file.');
+                }
+            };
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0]);
+            }
+        }
+
+        /* Filter helper */
+        function getFilteredHistory(timeframe) {
+            const now = Date.now();
+            if (timeframe === '1D') {
+                return historyData.filter(h => (now - h.timestamp) <= (24 * 60 * 60 * 1000));
+            } else if (timeframe === '1M') {
+                return historyData.filter(h => (now - h.timestamp) <= (30 * 24 * 60 * 60 * 1000));
+            } else if (timeframe === '6M') {
+                return historyData.filter(h => (now - h.timestamp) <= (180 * 24 * 60 * 60 * 1000));
+            }
+            return historyData;
+        }
+
+        /* Total Portfolio Performance Line Chart */
+        function drawPerformanceChart() {
+            const canvas = document.getElementById('performanceChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (historyData.length === 0) return;
+
+            const timeframe = document.getElementById('performanceTimeframe').value;
+            let filteredHistory = getFilteredHistory(timeframe);
+            if (filteredHistory.length === 0) filteredHistory = [...historyData];
+
+            const padding = 40;
+            const values = filteredHistory.map(h => h.value);
+            const minVal = Math.min(...values) * 0.95;
+            const maxVal = Math.max(...values) * 1.05 || 1;
+
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+
+            ctx.beginPath();
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 2;
+
+            filteredHistory.forEach((h, i) => {
+                const x = padding + (i * ((canvas.width - padding * 2) / (filteredHistory.length - 1 || 1)));
+                const y = canvas.height - padding - ((h.value - minVal) / (maxVal - minVal)) * (canvas.height - padding * 2);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+
+                ctx.fillStyle = accentColor;
+                ctx.fillRect(x - 3, y - 3, 6, 6);
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = textColor;
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+
+            const step = Math.ceil(filteredHistory.length / 6);
+            filteredHistory.forEach((h, i) => {
+                if (i % step === 0 || i === filteredHistory.length - 1) {
+                    const x = padding + (i * ((canvas.width - padding * 2) / (filteredHistory.length - 1 || 1)));
+                    const label = timeframe === '1D' ? h.time : h.date;
+                    ctx.fillText(label, x, canvas.height - 10);
+                }
+            });
+        }
+
+        /* Individual Slot Line Chart */
+        function drawSlotChart() {
+            const canvas = document.getElementById('slotChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (historyData.length === 0) return;
+
+            const slotIdx = parseInt(document.getElementById('slotSelect').value) || 0;
+            const timeframe = document.getElementById('slotTimeframe').value;
+            let filteredHistory = getFilteredHistory(timeframe);
+            if (filteredHistory.length === 0) filteredHistory = [...historyData];
+
+            const padding = 40;
+            const values = filteredHistory.map(h => (h.slots && h.slots[slotIdx] !== undefined) ? h.slots[slotIdx] : 0);
+            
+            let minVal = Math.min(...values);
+            let maxVal = Math.max(...values);
+            if (minVal === maxVal) { minVal -= 10; maxVal += 10; }
+
+            const gainColor = getComputedStyle(document.documentElement).getPropertyValue('--gain').trim();
+            const lossColor = getComputedStyle(document.documentElement).getPropertyValue('--loss').trim();
+            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+            const latestVal = values[values.length - 1] || 0;
+            const strokeColor = latestVal >= 0 ? gainColor : lossColor;
+
+            // Baseline (0 Gain/Loss)
+            const zeroY = canvas.height - padding - ((0 - minVal) / (maxVal - minVal)) * (canvas.height - padding * 2);
+            if (zeroY >= padding && zeroY <= canvas.height - padding) {
+                ctx.strokeStyle = textColor;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(padding, zeroY);
+                ctx.lineTo(canvas.width - padding, zeroY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Performance Line
+            ctx.beginPath();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2;
+
+            filteredHistory.forEach((h, i) => {
+                const val = (h.slots && h.slots[slotIdx] !== undefined) ? h.slots[slotIdx] : 0;
+                const x = padding + (i * ((canvas.width - padding * 2) / (filteredHistory.length - 1 || 1)));
+                const y = canvas.height - padding - ((val - minVal) / (maxVal - minVal)) * (canvas.height - padding * 2);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+
+                ctx.fillStyle = strokeColor;
+                ctx.fillRect(x - 3, y - 3, 6, 6);
+            });
+            ctx.stroke();
+
+            // Date / Time Labels
+            ctx.fillStyle = textColor;
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+
+            const step = Math.ceil(filteredHistory.length / 6);
+            filteredHistory.forEach((h, i) => {
+                if (i % step === 0 || i === filteredHistory.length - 1) {
+                    const x = padding + (i * ((canvas.width - padding * 2) / (filteredHistory.length - 1 || 1)));
+                    const label = timeframe === '1D' ? h.time : h.date;
+                    ctx.fillText(label, x, canvas.height - 10);
+                }
+            });
+        }
+
+        /* Pure Vanilla Canvas Graphs */
+        function drawAllocationChart(holdings, totalValue) {
+            const canvas = document.getElementById('allocationChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (totalValue <= 0 || holdings.length === 0) return;
+
+            let startAngle = 0;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 10;
+
+            holdings.forEach(h => {
+                if (h.value <= 0) return;
+                const sliceAngle = (h.value / totalValue) * 2 * Math.PI;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+                ctx.fillStyle = h.color;
+                ctx.fill();
+
+                startAngle += sliceAngle;
+            });
+        }
+
+        function drawComparisonChart(holdings) {
+            const canvas = document.getElementById('comparisonChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (holdings.length === 0) return;
+
+            const maxVal = Math.max(...holdings.map(h => Math.max(h.invested, h.value)), 1);
+            const padding = 30;
+            const barWidth = 10;
+            const gap = (canvas.width - (padding * 2)) / holdings.length;
+
+            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+
+            holdings.forEach((h, i) => {
+                const x = padding + (i * gap) + (gap / 4);
+                
+                const investedHeight = (h.invested / maxVal) * (canvas.height - 50);
+                const valueHeight = (h.value / maxVal) * (canvas.height - 50);
+
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(x, canvas.height - 25 - investedHeight, barWidth, investedHeight);
+
+                ctx.fillStyle = h.color;
+                ctx.fillRect(x + barWidth + 2, canvas.height - 25 - valueHeight, barWidth, valueHeight);
+
+                ctx.fillStyle = textColor;
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(h.label.substring(0, 5), x + barWidth, canvas.height - 10);
+            });
+        }
+
+        function drawGainLossChart(holdings) {
+            const canvas = document.getElementById('gainLossChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (holdings.length === 0) return;
+
+            const maxAbs = Math.max(...holdings.map(h => Math.abs(h.gainLoss)), 1);
+            const centerY = canvas.height / 2;
+            const padding = 20;
+            const barWidth = 16;
+            const gap = (canvas.width - (padding * 2)) / holdings.length;
+
+            const gainColor = getComputedStyle(document.documentElement).getPropertyValue('--gain').trim();
+            const lossColor = getComputedStyle(document.documentElement).getPropertyValue('--loss').trim();
+            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+
+            ctx.strokeStyle = textColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, centerY);
+            ctx.lineTo(canvas.width - padding, centerY);
+            ctx.stroke();
+
+            holdings.forEach((h, i) => {
+                const x = padding + (i * gap) + (gap / 3);
+                const barHeight = (Math.abs(h.gainLoss) / maxAbs) * (centerY - 20);
+
+                ctx.fillStyle = h.gainLoss >= 0 ? gainColor : lossColor;
+
+                if (h.gainLoss >= 0) {
+                    ctx.fillRect(x, centerY - barHeight, barWidth, barHeight);
+                } else {
+                    ctx.fillRect(x, centerY, barWidth, barHeight);
+                }
+
+                ctx.fillStyle = textColor;
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(h.label.substring(0, 5), x + (barWidth / 2), h.gainLoss >= 0 ? centerY + 15 : centerY - 10);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Stock Portfolio</title>
+    <style>
+        :root[data-theme="dark"] {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --input-bg: #0f172a;
+            --gain: #22c55e;
+            --loss: #ef4444;
+            --accent: #3b82f6;
+        }
+
+        :root[data-theme="light"] {
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --input-bg: #f1f5f9;
+            --gain: #16a34a;
+            --loss: #dc2626;
+            --accent: #2563eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 1rem; transition: background 0.2s, color 0.2s; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        h1 { font-size: 1.5rem; }
+        .theme-toggle { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+
+        /* Summary Dashboard */
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .summary-card { background: var(--card-bg); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); }
+        .summary-card label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .summary-card .value { font-size: 1.5rem; font-weight: bold; }
+
+        /* Table Area */
+        .table-container { overflow-x: auto; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 700px; }
+        th, td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+        th { background: rgba(0,0,0,0.05); color: var(--text-muted); font-size: 0.85rem; }
+        
+        input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 4px; width: 100%; max-width: 110px; }
+        input[type="text"] { max-width: 120px; text-transform: uppercase; }
+
+        .gain { color: var(--gain); font-weight: 600; }
+        .loss { color: var(--loss); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Portfolio Tracker</h1>
+            <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">Light Mode</button>
+        </header>
+
+        <section class="summary-grid">
+            <div class="summary-card">
+                <label>Total Invested</label>
+                <div class="value" id="totalInvested">£0.00</div>
+            </div>
+            <div class="summary-card">
+                <label>Portfolio Value</label>
+                <div class="value" id="totalValue">£0.00</div>
+            </div>
+            <div class="summary-card">
+                <label>Total Gain/Loss</label>
+                <div class="value" id="totalGainLoss">£0.00 (0.00%)</div>
+            </div>
+        </section>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker/Name</th>
+                        <th>Shares</th>
+                        <th>Buy Price (£)</th>
+                        <th>Current (£)</th>
+                        <th>Current Value</th>
+                        <th>Gain/Loss (£)</th>
+                        <th>Gain/Loss (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolioBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const ROWS = 10;
+        const defaultData = Array(ROWS).fill(null).map(() => ({ ticker: '', shares: '', buyPrice: '', currentPrice: '' }));
+        let portfolioData = JSON.parse(localStorage.getItem('folio_data')) || defaultData;
+        
+        // Ensure array size remains exactly 10
+        while(portfolioData.length < ROWS) portfolioData.push({ ticker: '', shares: '', buyPrice: '', currentPrice: '' });
+
+        function init() {
+            // Restore saved theme
+            const savedTheme = localStorage.getItem('folio_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+
+            renderTable();
+            calculateTotals();
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const target = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', target);
+            document.getElementById('themeBtn').textContent = target === 'dark' ? 'Light Mode' : 'Dark Mode';
+            localStorage.setItem('folio_theme', target);
+        }
+
+        function formatGBP(val) {
+            return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(val);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('portfolioBody');
+            tbody.innerHTML = '';
+
+            portfolioData.forEach((row, idx) => {
+                const shares = parseFloat(row.shares) || 0;
+                const buyPrice = parseFloat(row.buyPrice) || 0;
+                const currentPrice = parseFloat(row.currentPrice) || 0;
+
+                const currentValue = shares * currentPrice;
+                const investedValue = shares * buyPrice;
+                const gainLoss = currentValue - investedValue;
+                const gainLossPct = investedValue > 0 ? (gainLoss / investedValue) * 100 : 0;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${row.ticker}" oninput="updateRow(${idx}, 'ticker', this.value)" placeholder="Slot ${idx + 1}"></td>
+                    <td><input type="number" step="any" value="${row.shares}" oninput="updateRow(${idx}, 'shares', this.value)" placeholder="0"></td>
+                    <td><input type="number" step="any" value="${row.buyPrice}" oninput="updateRow(${idx}, 'buyPrice', this.value)" placeholder="0.00"></td>
+                    <td><input type="number" step="any" value="${row.currentPrice}" oninput="updateRow(${idx}, 'currentPrice', this.value)" placeholder="0.00"></td>
+                    <td>${formatGBP(currentValue)}</td>
+                    <td class="${gainLoss >= 0 ? 'gain' : 'loss'}">${formatGBP(gainLoss)}</td>
+                    <td class="${gainLossPct >= 0 ? 'gain' : 'loss'}">${gainLossPct.toFixed(2)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateRow(index, field, value) {
+            portfolioData[index][field] = value;
+            localStorage.setItem('folio_data', JSON.stringify(portfolioData));
+            renderTable();
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let totalInvested = 0;
+            let totalValue = 0;
+
+            portfolioData.forEach(row => {
+                const shares = parseFloat(row.shares) || 0;
+                const buyPrice = parseFloat(row.buyPrice) || 0;
+                const currentPrice = parseFloat(row.currentPrice) || 0;
+
+                totalInvested += shares * buyPrice;
+                totalValue += shares * currentPrice;
+            });
+
+            const totalGainLoss = totalValue - totalInvested;
+            const totalGainLossPct = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
+
+            document.getElementById('totalInvested').textContent = formatGBP(totalInvested);
+            document.getElementById('totalValue').textContent = formatGBP(totalValue);
+            
+            const totalGLContainer = document.getElementById('totalGainLoss');
+            totalGLContainer.textContent = `${formatGBP(totalGainLoss)} (${totalGainLossPct.toFixed(2)}%)`;
+            totalGLContainer.className = `value ${totalGainLoss >= 0 ? 'gain' : 'loss'}`;
+        }
+
+        init();
+    </script>
+</body>
+</html>

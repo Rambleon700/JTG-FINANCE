@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Private Stock Portfolio</title>
+  <!-- JTG Red Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23dc2626'/><text x='50%' y='62%' font-size='42' font-weight='900' font-family='system-ui, sans-serif' fill='%23ffffff' text-anchor='middle'>JTG</text></svg>">
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #666666;
+      --border: #e2e8f0;
+      --input-bg: #ffffff;
+      --pos: #16a34a;
+      --neg: #dc2626;
+      --accent: #2563eb;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --input-bg: #0f172a;
+      --accent: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 1rem; transition: background 0.2s, color 0.2s; }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.5rem; }
+    button { cursor: pointer; padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); font-weight: 600; }
+    
+    .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: var(--card-bg); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); }
+    .card-title { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .card-val { font-size: 1.4rem; font-weight: bold; }
+
+    .chart-container { background: var(--card-bg); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    svg.history-chart { width: 100%; height: 180px; overflow: visible; }
+
+    .table-wrapper { overflow-x: auto; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; min-width: 700px; }
+    th, td { padding: 0.75rem 0.5rem; border-bottom: 1px solid var(--border); }
+    th { background: rgba(0,0,0,0.02); color: var(--text-muted); font-weight: 600; }
+    
+    input { width: 100%; padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font-size: 0.85rem; }
+    
+    .pos { color: var(--pos); font-weight: 600; }
+    .neg { color: var(--neg); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Portfolio Tracker</h1>
+    <button id="themeToggle" onclick="toggleTheme()">Dark Mode</button>
+  </header>
+
+  <div class="dashboard">
+    <div class="card">
+      <div class="card-title">Total Portfolio Value</div>
+      <div class="card-val" id="totalVal">£0.00</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total Invested</div>
+      <div class="card-val" id="totalInvested">£0.00</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total Gain / Loss</div>
+      <div class="card-val" id="totalGainLoss">£0.00 (0.00%)</div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-header">
+      <div class="card-title">Portfolio History</div>
+      <button onclick="recordSnapshot()">Record Point on Graph</button>
+    </div>
+    <svg class="history-chart" id="historyChart" viewBox="0 0 500 150" preserveAspectRatio="none">
+      <polyline id="chartLine" fill="none" stroke="var(--accent)" stroke-width="3" points="" />
+    </svg>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Slot</th>
+          <th>Share / Ticker</th>
+          <th>Shares</th>
+          <th>Book Price (£)</th>
+          <th>Current Price (£)</th>
+          <th>Current Value</th>
+          <th>Gain / Loss (£)</th>
+          <th>Gain / Loss (%)</th>
+        </tr>
+      </thead>
+      <tbody id="holdingsTable"></tbody>
+    </table>
+  </div>
+  <button onclick="clearHistory()" style="font-size: 0.75rem; color: var(--text-muted);">Reset Chart History</button>
+</div>
+
+<script>
+  const MAX_SLOTS = 10;
+  let holdings = JSON.parse(localStorage.getItem('folio_holdings')) || Array.from({length: MAX_SLOTS}, () => ({ ticker: '', shares: 0, cost: 0, price: 0 }));
+  let historyData = JSON.parse(localStorage.getItem('folio_history')) || [];
+  let isDark = localStorage.getItem('folio_theme') === 'dark';
+
+  function init() {
+    if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+    updateThemeBtn();
+    renderTable();
+    calculate();
+    renderChart();
+  }
+
+  function toggleTheme() {
+    isDark = !isDark;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('folio_theme', isDark ? 'dark' : 'light');
+    updateThemeBtn();
+  }
+
+  function updateThemeBtn() {
+    document.getElementById('themeToggle').innerText = isDark ? 'Light Mode' : 'Dark Mode';
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('holdingsTable');
+    tbody.innerHTML = '';
+    holdings.forEach((h, i) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${i + 1}</td>
+          <td><input type="text" value="${h.ticker}" onchange="updateHolding(${i}, 'ticker', this.value)"></td>
+          <td><input type="number" step="any" value="${h.shares || ''}" onchange="updateHolding(${i}, 'shares', this.value)"></td>
+          <td><input type="number" step="any" value="${h.cost || ''}" onchange="updateHolding(${i}, 'cost', this.value)"></td>
+          <td><input type="number" step="any" value="${h.price || ''}" onchange="updateHolding(${i}, 'price', this.value)"></td>
+          <td id="val-${i}">£0.00</td>
+          <td id="gain-${i}">£0.00</td>
+          <td id="pct-${i}">0.00%</td>
+        </tr>
+      `;
+    });
+  }
+
+  function updateHolding(index, key, value) {
+    holdings[index][key] = key === 'ticker' ? value : parseFloat(value) || 0;
+    localStorage.setItem('folio_holdings', JSON.stringify(holdings));
+    calculate();
+  }
+
+  function calculate() {
+    let totVal = 0;
+    let totCost = 0;
+
+    holdings.forEach((h, i) => {
+      const val = h.shares * h.price;
+      const cost = h.shares * h.cost;
+      const diff = val - cost;
+      const pct = cost > 0 ? (diff / cost) * 100 : 0;
+
+      totVal += val;
+      totCost += cost;
+
+      document.getElementById(`val-${i}`).innerText = `£${val.toFixed(2)}`;
+      
+      const gainEl = document.getElementById(`gain-${i}`);
+      gainEl.innerText = `£${diff.toFixed(2)}`;
+      gainEl.className = diff >= 0 ? 'pos' : 'neg';
+
+      const pctEl = document.getElementById(`pct-${i}`);
+      pctEl.innerText = `${pct.toFixed(2)}%`;
+      pctEl.className = diff >= 0 ? 'pos' : 'neg';
+    });
+
+    const totDiff = totVal - totCost;
+    const totPct = totCost > 0 ? (totDiff / totCost) * 100 : 0;
+
+    document.getElementById('totalVal').innerText = `£${totVal.toFixed(2)}`;
+    document.getElementById('totalInvested').innerText = `£${totCost.toFixed(2)}`;
+    
+    const totGainEl = document.getElementById('totalGainLoss');
+    totGainEl.innerText = `£${totDiff.toFixed(2)} (${totPct.toFixed(2)}%)`;
+    totGainEl.className = 'card-val ' + (totDiff >= 0 ? 'pos' : 'neg');
+  }
+
+  function recordSnapshot() {
+    let currentTotal = holdings.reduce((sum, h) => sum + (h.shares * h.price), 0);
+    historyData.push(currentTotal);
+    localStorage.setItem('folio_history', JSON.stringify(historyData));
+    renderChart();
+  }
+
+  function clearHistory() {
+    historyData = [];
+    localStorage.removeItem('folio_history');
+    renderChart();
+  }
+
+  function renderChart() {
+    const line = document.getElementById('chartLine');
+    if (historyData.length < 2) {
+      line.setAttribute('points', '');
+      return;
+    }
+
+    const min = Math.min(...historyData);
+    const max = Math.max(...historyData);
+    const range = max - min || 1;
+    const width = 500;
+    const height = 150;
+    const step = width / (historyData.length - 1);
+
+    const points = historyData.map((val, idx) => {
+      const x = idx * step;
+      const y = height - ((val - min) / range) * (height - 20) - 10;
+      return `${x},${y}`;
+    }).join(' ');
+
+    line.setAttribute('points', points);
+  }
+
+  init();
+</script>
+</body>
+</html>

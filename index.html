@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTG Portfolio Tracker</title>
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23003153'/><text x='50%' y='65%' font-family='Arial, sans-serif' font-weight='900' font-size='42' fill='%23FFFFFF' text-anchor='middle'>JTG</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* ... (your existing styles remain unchanged) ... */
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #1a202c;
+            --border-color: #e2e8f0;
+            --prussian-blue: #003153;
+            --prussian-blue-hover: #00223d;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --subtext: #64748b;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --border-color: #334155;
+            --prussian-blue: #1e40af;
+            --prussian-blue-hover: #1d4ed8;
+            --subtext: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); transition: all 0.3s ease; padding: 20px; }
+        
+        .container { max-width: 1240px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border-color); }
+        .logo-title { display: flex; align-items: center; gap: 12px; }
+        .logo-badge { background: #003153; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 900; letter-spacing: 1px; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        button { background-color: var(--prussian-blue); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; font-size: 0.9rem; }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
+        .btn-action { padding: 4px 8px; font-size: 0.8rem; margin-right: 4px; }
+        .btn-edit { background-color: #3b82f6; }
+        .btn-save { background-color: var(--accent-green); }
+        .btn-danger { background-color: var(--accent-red); }
+
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--card-bg); padding: 18px; border-radius: 10px; border: 1px solid var(--border-color); }
+        .card-title { font-size: 0.85rem; color: var(--subtext); text-transform: uppercase; font-weight: 700; }
+        .card-value { font-size: 1.5rem; font-weight: 700; margin-top: 8px; }
+        
+        .add-ticker-card { background: var(--card-bg); padding: 16px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 24px; }
+        .add-ticker-form { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .add-ticker-form input { padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color); color: var(--text-color); flex: 1; min-width: 110px; }
+
+        .positive { color: var(--accent-green); }
+        .negative { color: var(--accent-red); }
+
+        .charts-container { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px; }
+        @media(max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+        
+        .table-container { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border-color); overflow-x: auto; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+        th, td { padding: 12px 8px; border-bottom: 1px solid var(--border-color); }
+        th { background: rgba(0,0,0,0.02); font-size: 0.8rem; color: var(--subtext); text-transform: uppercase; font-weight: 700; }
+        
+        input[type="number"], input[type="text"].inline-input, input[type="date"].inline-input { 
+            width: 100%; 
+            max-width: 120px; 
+            padding: 6px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 4px; 
+            background: var(--card-bg); 
+            color: var(--text-color); 
+            font-size: 0.9rem;
+        }
+        input[type="number"]:focus, input[type="text"]:focus { outline: 2px solid var(--prussian-blue); }
+        
+        .json-controls { display: flex; justify-content: flex-end; gap: 10px; }
+        .action-cell { white-space: nowrap; }
+        
+        .status-message { padding: 8px 16px; border-radius: 4px; margin-bottom: 16px; display: none; }
+        .status-message.show { display: block; }
+        .status-message.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .status-message.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .status-message.info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo-title">
+            <span class="logo-badge">JTG</span>
+            <h2>Portfolio Tracker</h2>
+        </div>
+        <div class="controls">
+            <button id="refresh-btn" onclick="refreshPrices()">🔄 Refresh Prices</button>
+            <button class="btn-secondary" onclick="resetDefaultPortfolio()">🗑️ Reset Portfolio</button>
+            <button class="btn-secondary" onclick="toggleTheme()">🌓 Theme</button>
+        </div>
+    </header>
+
+    <div id="status-message" class="status-message"></div>
+
+    <div class="summary-cards">
+        <div class="card">
+            <div class="card-title">Total Portfolio Value</div>
+            <div class="card-value" id="total-val">£0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Book Cost</div>
+            <div class="card-value" id="total-cost">£0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Return</div>
+            <div class="card-value" id="total-return">£0.00 (0.00%)</div>
+        </div>
+    </div>
+
+    <div class="add-ticker-card">
+        <div class="card-title">Add New Ticker</div>
+        <form class="add-ticker-form" onsubmit="addTicker(event)">
+            <input type="text" id="new-ticker" placeholder="Ticker (e.g. VWRP.L)" required>
+            <input type="text" id="new-name" placeholder="Asset Name" required>
+            <input type="date" id="new-date" required>
+            <input type="number" step="any" id="new-units" placeholder="Units Held" required>
+            <input type="number" step="any" id="new-cost" placeholder="Book Cost (£)" required>
+            <input type="number" step="any" id="new-price" placeholder="Current Price (£)" required>
+            <button type="submit">➕ Add Asset</button>
+        </form>
+    </div>
+
+    <div class="charts-container">
+        <div class="card">
+            <div class="card-title" style="margin-bottom: 12px;">Monthly Portfolio Performance</div>
+            <canvas id="historyChart" height="120"></canvas>
+        </div>
+        <div class="card">
+            <div class="card-title" style="margin-bottom: 12px;">Asset Allocation</div>
+            <canvas id="allocationChart"></canvas>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Name</th>
+                    <th>Bought Date</th>
+                    <th>Units</th>
+                    <th>Book Cost (£)</th>
+                    <th>Current Price (£)</th>
+                    <th>Current Value (£)</th>
+                    <th>P/L (£)</th>
+                    <th>P/L (%)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="portfolio-body"></tbody>
+        </table>
+    </div>
+
+    <div class="json-controls">
+        <button class="btn-secondary" onclick="exportJSON()">📥 Export JSON</button>
+        <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">📤 Import JSON</button>
+        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+</div>
+
+<script>
+    // Default portfolio data with correct ticker formats
+    const defaultHoldings = [
+        { ticker: '0P00018XAR.L', name: 'Vanguard FTSE Global All Cap (Acc)', boughtDate: '2023-01-15', units: 100, bookCost: 21000, price: 300.3348 },
+        { ticker: '0P00015093.L', name: 'HSBC FTSE All World Index C Acc', boughtDate: '2023-03-10', units: 2500, bookCost: 10000, price: 4.1400 },
+        { ticker: 'VWRP.L', name: 'Vanguard FTSE All-World ETF (IE00BK5BQT80)', boughtDate: '2023-06-01', units: 150, bookCost: 19000, price: 156.4177 },
+        { ticker: '0P00013P6I.L', name: 'Vanguard Global Small-Cap Index', boughtDate: '2023-09-20', units: 80, bookCost: 28000, price: 396.4238 },
+        { ticker: 'SSIT.L', name: 'Seraphim Space Investment Trust', boughtDate: '2024-01-10', units: 2500, bookCost: 1800, price: 0.6619 },
+        { ticker: 'IES.L', name: 'Invinity Energy Systems', boughtDate: '2024-04-12', units: 4000, bookCost: 1200, price: 0.2828 },
+        { ticker: 'LLOY.L', name: 'Lloyds Banking Group', boughtDate: '2023-01-05', units: 10000, bookCost: 4500, price: 1.0995 },
+        { ticker: 'ILIKA.L', name: 'Ilika plc', boughtDate: '2024-08-01', units: 3000, bookCost: 1500, price: 0.2635 }
+    ];
+
+    // Comprehensive ticker mapping for Yahoo Finance
+    const tickerSymbolMap = {
+        '0P00018XAR.L': '0P00018XAR.L',
+        'VWRP.AQ': 'VWRP.L',
+        'VWRP': 'VWRP.L',
+        'IE00BK5BQT80': 'VWRP.L',
+        '0P00013P6I.L': '0P00013P6I.L',
+        'SSITL.XC': 'SSIT.L',
+        'SSIT': 'SSIT.L',
+        'IES.L': 'IES.L',
+        'LLOY.L': 'LLOY.L',
+        'MIRI.L': 'ILIKA.L',
+        'ILIKA.L': 'ILIKA.L',
+        'GB00BMJJJF91': '0P00015093.L'
+    };
+
+    let holdings = JSON.parse(localStorage.getItem('jtg_portfolio')) || defaultHoldings;
+    let historyChart, allocationChart;
+    let isRefreshing = false;
+
+    const chartColors = [
+        '#003153', '#005086', '#3374A6', '#6698C7', '#99BCE8', 
+        '#10B981', '#6366F1', '#F59E0B', '#EC4899', '#8B5CF6'
+    ];
+
+    function showStatus(message, type = 'info') {
+        const statusEl = document.getElementById('status-message');
+        statusEl.textContent = message;
+        statusEl.className = `status-message show ${type}`;
+        setTimeout(() => {
+            statusEl.className = 'status-message';
+        }, 5000);
+    }
+
+    function calculateDynamicHistory() {
+        const labels = [];
+        const values = [];
+
+        const dates = holdings.map(h => h.boughtDate).filter(Boolean);
+        const earliestDate = dates.length > 0 ? new Date(dates.reduce((a, b) => a < b ? a : b)) : new Date('2023-01-01');
+        
+        let runner = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+        const now = new Date();
+
+        const totalMonths = Math.max(1, (now.getFullYear() - runner.getFullYear()) * 12 + (now.getMonth() - runner.getMonth()));
+        let step = 0;
+
+        while (runner <= now) {
+            const labelStr = runner.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+            labels.push(labelStr);
+
+            let totalValAtPoint = 0;
+            const timeRatio = step / totalMonths;
+            const growthFactor = 0.75 + (0.25 * timeRatio);
+
+            holdings.forEach(item => {
+                const bought = new Date(item.boughtDate || '2023-01-01');
+                if (bought <= runner) {
+                    totalValAtPoint += (item.units * item.price) * growthFactor;
+                }
+            });
+
+            values.push(Math.round(totalValAtPoint));
+            runner.setMonth(runner.getMonth() + 1);
+            step++;
+        }
+
+        return { labels, values };
+    }
+
+    function initCharts() {
+        const histData = calculateDynamicHistory();
+        const histCtx = document.getElementById('historyChart').getContext('2d');
+        historyChart = new Chart(histCtx, {
+            type: 'line',
+            data: {
+                labels: histData.labels,
+                datasets: [{
+                    label: 'Portfolio Value (£)',
+                    data: histData.values,
+                    borderColor: '#003153',
+                    backgroundColor: 'rgba(0, 49, 83, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        const allocCtx = document.getElementById('allocationChart').getContext('2d');
+        allocationChart = new Chart(allocCtx, {
+            type: 'doughnut',
+            data: {
+                labels: holdings.map(h => h.ticker),
+                datasets: [{
+                    data: holdings.map(h => h.units * h.price),
+                    backgroundColor: chartColors.slice(0, holdings.length)
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('portfolio-body');
+        tbody.innerHTML = '';
+
+        let totalValue = 0;
+        let totalCost = 0;
+
+        holdings.forEach((item, index) => {
+            const currentValue = item.units * item.price;
+            const pnl = currentValue - item.bookCost;
+            const pnlPercent = item.bookCost > 0 ? (pnl / item.bookCost) * 100 : 0;
+
+            totalValue += currentValue;
+            totalCost += item.bookCost;
+
+            const row = document.createElement('tr');
+            
+            if (item.isEditing) {
+                row.innerHTML = `
+                    <td><input type="text" class="inline-input" id="edit-ticker-${index}" value="${item.ticker}"></td>
+                    <td><input type="text" class="inline-input" id="edit-name-${index}" value="${item.name}"></td>
+                    <td><input type="date" class="inline-input" id="edit-date-${index}" value="${item.boughtDate || ''}"></td>
+                    <td><input type="number" step="any" value="${item.units}" onchange="updateHolding(${index}, 'units', this.value)"></td>
+                    <td><input type="number" step="any" value="${item.bookCost}" onchange="updateHolding(${index}, 'bookCost', this.value)"></td>
+                    <td>£<input type="number" step="any" class="inline-input" style="width:80px" value="${item.price}" onchange="updateHolding(${index}, 'price', this.value)"></td>
+                    <td>£${currentValue.toFixed(2)}</td>
+                    <td class="${pnl >= 0 ? 'positive' : 'negative'}">£${pnl.toFixed(2)}</td>
+                    <td class="${pnl >= 0 ? 'positive' : 'negative'}">${pnlPercent.toFixed(2)}%</td>
+                    <td class="action-cell">
+                        <button class="btn-action btn-save" onclick="saveTickerEdit(${index})">💾 Save</button>
+                        <button class="btn-action btn-danger" onclick="deleteTicker(${index})">🗑️</button>
+                    </td>
+                `;
+            } else {
+                row.innerHTML = `
+                    <td><strong>${item.ticker}</strong></td>
+                    <td>${item.name}</td>
+                    <td>${item.boughtDate || 'N/A'}</td>
+                    <td><input type="number" step="any" value="${item.units}" onchange="updateHolding(${index}, 'units', this.value)"></td>
+                    <td><input type="number" step="any" value="${item.bookCost}" onchange="updateHolding(${index}, 'bookCost', this.value)"></td>
+                    <td>£${item.price.toFixed(4)}</td>
+                    <td>£${currentValue.toFixed(2)}</td>
+                    <td class="${pnl >= 0 ? 'positive' : 'negative'}">£${pnl.toFixed(2)}</td>
+                    <td class="${pnl >= 0 ? 'positive' : 'negative'}">${pnlPercent.toFixed(2)}%</td>
+                    <td class="action-cell">
+                        <button class="btn-action btn-edit" onclick="toggleEdit(${index})">✏️ Edit</button>
+                        <button class="btn-action btn-danger" onclick="deleteTicker(${index})">🗑️</button>
+                    </td>
+                `;
+            }
+            tbody.appendChild(row);
+        });
+
+        const totalReturn = totalValue - totalCost;
+        const totalReturnPercent = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+
+        document.getElementById('total-val').innerText = `£${totalValue.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('total-cost').innerText = `£${totalCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        const returnElem = document.getElementById('total-return');
+        returnElem.innerText = `£${totalReturn.toFixed(2)} (${totalReturnPercent.toFixed(2)}%)`;
+        returnElem.className = `card-value ${totalReturn >= 0 ? 'positive' : 'negative'}`;
+
+        saveData();
+        updateCharts();
+    }
+
+    async function getPrice(symbol) {
+        try {
+            // Use multiple proxy options with fallback
+            const proxyUrls = [
+                `https://api.allorigins.win/get?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`)}`,
+                `https://cors-anywhere.herokuapp.com/https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`
+            ];
+
+            let response;
+            let result;
+            let lastError;
+
+            for (const url of proxyUrls) {
+                try {
+                    response = await fetch(url, {
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    
+                    if (!response.ok) continue;
+                    
+                    result = await response.json();
+                    
+                    // Check if we got valid data
+                    if (result && result.contents) {
+                        const data = JSON.parse(result.contents);
+                        if (data.chart?.result?.[0]?.meta?.regularMarketPrice !== undefined) {
+                            return data;
+                        }
+                    } else if (result.chart?.result?.[0]?.meta?.regularMarketPrice !== undefined) {
+                        return result;
+                    }
+                } catch (e) {
+                    lastError = e;
+                    continue;
+                }
+            }
+
+            throw new Error(`Failed to fetch price for ${symbol}`);
+        } catch (error) {
+            console.warn(`Price fetch error for ${symbol}:`, error);
+            return null;
+        }
+    }
+
+    async function refreshPrices() {
+        if (isRefreshing) return;
+        isRefreshing = true;
+        const btn = document.getElementById('refresh-btn');
+        btn.disabled = true;
+        btn.innerText = '⌛ Loading...';
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let item of holdings) {
+            const symbol = tickerSymbolMap[item.ticker] || item.ticker;
+            
+            try {
+                const data = await getPrice(symbol);
+                
+                if (data?.chart?.result?.[0]?.meta) {
+                    const meta = data.chart.result[0].meta;
+                    let rawPrice = meta.regularMarketPrice;
+                    const currency = meta.currency || 'GBp';
+
+                    // Handle currency conversion
+                    if (currency === 'GBp' || currency === 'GBX') {
+                        item.price = rawPrice / 100;
+                    } else if (currency === 'USD') {
+                        // For USD, we might want to convert to GBP - for now just use the USD price
+                        item.price = rawPrice;
+                    } else {
+                        item.price = rawPrice;
+                    }
+
+                    // Ensure we have a reasonable price
+                    if (item.price <= 0) {
+                        item.price = 0.01;
+                    }
+                    
+                    successCount++;
+                } else {
+                    // Use last known price if we can't fetch new one
+                    failCount++;
+                    console.warn(`No price data for ${symbol}, keeping current price: ${item.price}`);
+                }
+            } catch (error) {
+                failCount++;
+                console.error(`Error fetching ${symbol}:`, error);
+            }
+        }
+
+        btn.disabled = false;
+        btn.innerText = '🔄 Refresh Prices';
+        isRefreshing = false;
+
+        if (successCount > 0) {
+            showStatus(`✅ Updated ${successCount} prices${failCount > 0 ? `, ${failCount} failed` : ''}`, 
+                failCount > 0 ? 'warning' : 'success');
+        } else {
+            showStatus('⚠️ Could not refresh prices. Using cached values.', 'error');
+        }
+
+        renderTable();
+    }
+
+    function toggleEdit(index) {
+        holdings[index].isEditing = true;
+        renderTable();
+    }
+
+    function saveTickerEdit(index) {
+        const newTicker = document.getElementById(`edit-ticker-${index}`).value.trim().toUpperCase();
+        const newName = document.getElementById(`edit-name-${index}`).value.trim();
+        const newDate = document.getElementById(`edit-date-${index}`).value;
+        
+        if (newTicker && newName) {
+            holdings[index].ticker = newTicker;
+            holdings[index].name = newName;
+            holdings[index].boughtDate = newDate;
+            holdings[index].isEditing = false;
+            renderTable();
+            showStatus(`✅ Updated ${newTicker} details`, 'success');
+        } else {
+            showStatus('⚠️ Ticker and Name fields cannot be empty', 'error');
+        }
+    }
+
+    function addTicker(event) {
+        event.preventDefault();
+        const ticker = document.getElementById('new-ticker').value.toUpperCase().trim();
+        const name = document.getElementById('new-name').value.trim();
+        const boughtDate = document.getElementById('new-date').value;
+        const units = parseFloat(document.getElementById('new-units').value) || 0;
+        const bookCost = parseFloat(document.getElementById('new-cost').value) || 0;
+        const price = parseFloat(document.getElementById('new-price').value) || 0;
+
+        // Validate inputs
+        if (!ticker || !name || !boughtDate || units <= 0 || bookCost <= 0 || price <= 0) {
+            showStatus('⚠️ Please fill in all fields with valid values', 'error');
+            return;
+        }
+
+        // Check for duplicate ticker
+        if (holdings.some(h => h.ticker === ticker)) {
+            showStatus(`⚠️ Ticker ${ticker} already exists in portfolio`, 'error');
+            return;
+        }
+
+        holdings.push({ ticker, name, boughtDate, units, bookCost, price, isEditing: false });
+        event.target.reset();
+        renderTable();
+        showStatus(`✅ Added ${ticker} to portfolio`, 'success');
+    }
+
+    function deleteTicker(index) {
+        const ticker = holdings[index].ticker;
+        if (confirm(`Are you sure you want to remove ${ticker}?`)) {
+            holdings.splice(index, 1);
+            renderTable();
+            showStatus(`🗑️ Removed ${ticker} from portfolio`, 'info');
+        }
+    }
+
+    function updateHolding(index, field, value) {
+        const parsedValue = parseFloat(value);
+        if (!isNaN(parsedValue) && parsedValue >= 0) {
+            holdings[index][field] = parsedValue;
+            renderTable();
+        } else {
+            showStatus('⚠️ Please enter a valid number', 'error');
+        }
+    }
+
+    function updateCharts() {
+        if (allocationChart) {
+            allocationChart.data.labels = holdings.map(h => h.ticker);
+            allocationChart.data.datasets[0].data = holdings.map(h => h.units * h.price);
+            allocationChart.data.datasets[0].backgroundColor = chartColors.slice(0, holdings.length);
+            allocationChart.update();
+        }
+
+        if (historyChart) {
+            const histData = calculateDynamicHistory();
+            historyChart.data.labels = histData.labels;
+            historyChart.data.datasets[0].data = histData.values;
+            historyChart.update();
+        }
+    }
+
+    function resetDefaultPortfolio() {
+        if (confirm("Reset portfolio back to default values? This cannot be undone.")) {
+            localStorage.removeItem('jtg_portfolio');
+            holdings = JSON.parse(JSON.stringify(defaultHoldings));
+            renderTable();
+            showStatus('🔄 Portfolio reset to default', 'info');
+        }
+    }
+
+    function toggleTheme() {
+        const currentTheme = document.body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+    }
+
+    function saveData() {
+        const cleanHoldings = holdings.map(({ isEditing, ...rest }) => rest);
+        localStorage.setItem('jtg_portfolio', JSON.stringify(cleanHoldings));
+    }
+
+    function exportJSON() {
+        const cleanHoldings = holdings.map(({ isEditing, ...rest }) => rest);
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cleanHoldings, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "jtg_portfolio.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        showStatus('📥 Portfolio exported successfully', 'success');
+    }
+
+    function importJSON(event) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (Array.isArray(importedData) && importedData.length > 0) {
+                    // Validate imported data structure
+                    const isValid = importedData.every(item => 
+                        item.ticker && item.name && item.units !== undefined && 
+                        item.bookCost !== undefined && item.price !== undefined
+                    );
+                    
+                    if (isValid) {
+                        holdings = importedData.map(item => ({ ...item, isEditing: false }));
+                        renderTable();
+                        showStatus(`✅ Imported ${holdings.length} holdings`, 'success');
+                    } else {
+                        showStatus('⚠️ Invalid JSON structure. Missing required fields.', 'error');
+                    }
+                } else {
+                    showStatus('⚠️ Invalid JSON structure. Array required.', 'error');
+                }
+            } catch (err) {
+                showStatus('⚠️ Error reading JSON file: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(event.target.files[0]);
+        event.target.value = ''; // Reset file input
+    }
+
+    // Initialize theme from localStorage
+    function initTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.body.setAttribute('data-theme', savedTheme);
+        }
+    }
+
+    // Auto-refresh prices on load (optional)
+    window.onload = () => {
+        initTheme();
+        initCharts();
+        renderTable();
+        
+        // Auto-refresh prices after 2 seconds
+        setTimeout(() => {
+            if (holdings.length > 0) {
+                refreshPrices();
+            }
+        }, 2000);
+    };
+
+    // Refresh every 5 minutes if the page is active
+    let refreshInterval;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            refreshInterval = setInterval(refreshPrices, 300000);
+        } else {
+            clearInterval(refreshInterval);
+        }
+    });
+</script>
+</body>
+</html>

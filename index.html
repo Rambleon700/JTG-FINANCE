@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTG Portfolio Tracker</title>
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23003153'/><text x='50%' y='65%' font-family='Arial, sans-serif' font-weight='900' font-size='42' fill='%23FFFFFF' text-anchor='middle'>JTG</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #1a202c;
+            --border-color: #e2e8f0;
+            --prussian-blue: #003153;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --subtext: #64748b;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --border-color: #334155;
+            --prussian-blue: #3b82f6;
+            --subtext: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border-color); flex-wrap: wrap; gap: 10px; }
+        .logo-title { display: flex; align-items: center; gap: 12px; }
+        .logo-badge { background: var(--prussian-blue); color: white; padding: 6px 12px; border-radius: 8px; font-weight: 900; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        button { background-color: var(--prussian-blue); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
+        .btn-action { padding: 4px 8px; font-size: 0.8rem; margin-right: 4px; }
+        .btn-edit { background-color: #3b82f6; }
+        .btn-save { background-color: var(--accent-green); }
+        .btn-danger { background-color: var(--accent-red); }
+
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--card-bg); padding: 18px; border-radius: 10px; border: 1px solid var(--border-color); }
+        .card-title { font-size: 0.85rem; color: var(--subtext); text-transform: uppercase; font-weight: 700; }
+        .card-value { font-size: 1.5rem; font-weight: 700; margin-top: 8px; }
+        .card-subtext { font-size: 0.8rem; color: var(--subtext); margin-top: 4px; }
+
+        .positive { color: var(--accent-green); }
+        .negative { color: var(--accent-red); }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        @media(max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+        .chart-container { position: relative; height: 260px; width: 100%; }
+
+        .table-container { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border-color); overflow-x: auto; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+        th, td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
+        th { background: rgba(0,0,0,0.02); font-size: 0.8rem; color: var(--subtext); text-transform: uppercase; font-weight: 700; cursor: pointer; }
+
+        input.inline-input { width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--card-bg); color: var(--text-color); font-size: 0.9rem; }
+        .json-controls { display: flex; justify-content: flex-end; gap: 10px; }
+        
+        .status-message { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; display: none; font-weight: 500; }
+        .status-message.show { display: block; }
+        .status-message.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .status-message.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .status-message.warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo-title">
+            <span class="logo-badge">JTG</span>
+            <h2>Portfolio Tracker</h2>
+        </div>
+        <div class="controls">
+            <button id="refresh-btn" onclick="refreshPrices()">🔄 Refresh Prices</button>
+            <button class="btn-secondary" onclick="resetDefaultPortfolio()">🗑️ Reset</button>
+            <button class="btn-secondary" onclick="toggleTheme()">🌓 Theme</button>
+        </div>
+    </header>
+
+    <div id="status-message" class="status-message"></div>
+
+    <div class="summary-cards">
+        <div class="card">
+            <div class="card-title">Portfolio Value</div>
+            <div class="card-value" id="total-val">£0.00</div>
+            <div class="card-subtext" id="asset-count">0 Positions</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Book Cost</div>
+            <div class="card-value" id="total-cost">£0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Return</div>
+            <div class="card-value" id="total-return">£0.00 (0.00%)</div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <div class="card">
+            <div class="card-title" style="margin-bottom: 12px;">Aggregate Trajectory (Monthly Value)</div>
+            <div class="chart-container">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="margin-bottom: 12px;">Asset Allocation</div>
+            <div class="chart-container">
+                <canvas id="allocationChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Name</th>
+                    <th>Bought Date</th>
+                    <th>Units</th>
+                    <th>Book Cost (£)</th>
+                    <th>Price (£)</th>
+                    <th>Value (£)</th>
+                    <th>P/L (£)</th>
+                    <th>P/L (%)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="portfolio-body"></tbody>
+        </table>
+    </div>
+
+    <div class="json-controls">
+        <button class="btn-secondary" onclick="exportJSON()">📥 Export JSON</button>
+        <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">📤 Import JSON</button>
+        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+</div>
+
+<script>
+    const defaultHoldings = [
+        { ticker: '0P00018XAR.L', name: 'Vanguard FTSE Global All Cap (Acc)', boughtDate: '2023-01-15', units: 100, bookCost: 21000, price: 300.3348 },
+        { ticker: '0P00015093.L', name: 'HSBC FTSE All World Index C Acc', boughtDate: '2023-03-10', units: 2500, bookCost: 10000, price: 4.1400 },
+        { ticker: 'VWRP.L', name: 'Vanguard FTSE All-World ETF', boughtDate: '2023-06-01', units: 150, bookCost: 19000, price: 156.4177 },
+        { ticker: '0P00013P6I.L', name: 'Vanguard Global Small-Cap Index', boughtDate: '2023-09-20', units: 80, bookCost: 28000, price: 396.4238 },
+        { ticker: 'SSIT.L', name: 'Seraphim Space Investment Trust', boughtDate: '2024-01-10', units: 2500, bookCost: 1800, price: 0.6619 },
+        { ticker: 'IES.L', name: 'Invinity Energy Systems', boughtDate: '2024-04-12', units: 4000, bookCost: 1200, price: 0.2828 },
+        { ticker: 'LLOY.L', name: 'Lloyds Banking Group', boughtDate: '2023-01-05', units: 10000, bookCost: 4500, price: 1.0995 },
+        { ticker: 'ILIKA.L', name: 'Ilika plc', boughtDate: '2024-08-01', units: 3000, bookCost: 1500, price: 0.2635 }
+    ];
+
+    let holdings = JSON.parse(localStorage.getItem('jtg_portfolio')) || defaultHoldings;
+    let historyChart = null;
+    let allocationChart = null;
+
+    const chartColors = ['#003153', '#005086', '#3374A6', '#6698C7', '#99BCE8', '#10B981', '#6366F1', '#F59E0B', '#EC4899', '#8B5CF6'];
+
+    function showStatus(message, type = 'info') {
+        const statusEl = document.getElementById('status-message');
+        statusEl.textContent = message;
+        statusEl.className = `status-message show ${type}`;
+        setTimeout(() => { statusEl.className = 'status-message'; }, 4000);
+    }
+
+    // Safe Non-Blocking Aggregate Trajectory Calculation
+    function calculateSafeTrajectory() {
+        try {
+            const currentTotalVal = holdings.reduce((sum, h) => sum + ((Number(h.units) || 0) * (Number(h.price) || 0)), 0);
+            const currentTotalCost = holdings.reduce((sum, h) => sum + (Number(h.bookCost) || 0), 0);
+            
+            const points = 6;
+            const labels = [];
+            const data = [];
+            const now = new Date();
+
+            for (let i = points - 1; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                labels.push(date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }));
+                
+                // Safe linear interpolation to avoid infinite numeric scaling loops
+                const step = points > 1 ? (currentTotalVal - currentTotalCost) / (points - 1) : 0;
+                const interpolatedVal = currentTotalCost + (step * (points - 1 - i));
+                
+                data.push(Math.round(isNaN(interpolatedVal) ? 0 : interpolatedVal));
+            }
+
+            return { labels, data };
+        } catch (e) {
+            console.error("Error computing trajectory:", e);
+            return { labels: ['Current'], data: [0] };
+        }
+    }
+
+    function initCharts() {
+        const histCanvas = document.getElementById('historyChart');
+        const allocCanvas = document.getElementById('allocationChart');
+        if (!histCanvas || !allocCanvas) return;
+
+        const histCtx = histCanvas.getContext('2d');
+        const allocCtx = allocCanvas.getContext('2d');
+
+        historyChart = new Chart(histCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Value (£)', data: [], borderColor: '#003153', backgroundColor: 'rgba(0, 49, 83, 0.1)', fill: true }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        allocationChart = new Chart(allocCtx, {
+            type: 'doughnut',
+            data: { labels: [], datasets: [{ data: [], backgroundColor: chartColors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        updateCharts();
+    }
+
+    function updateCharts() {
+        if (!historyChart || !allocationChart) return;
+
+        // Offload calculation to next frame to prevent browser freeze
+        requestAnimationFrame(() => {
+            const trajectory = calculateSafeTrajectory();
+            historyChart.data.labels = trajectory.labels;
+            historyChart.data.datasets[0].data = trajectory.data;
+            historyChart.update('none'); // Update without heavy animations
+
+            allocationChart.data.labels = holdings.map(h => h.ticker || 'Asset');
+            allocationChart.data.datasets[0].data = holdings.map(h => (Number(h.units) || 0) * (Number(h.price) || 0));
+            allocationChart.data.datasets[0].backgroundColor = chartColors.slice(0, holdings.length);
+            allocationChart.update('none');
+        });
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('portfolio-body');
+        tbody.innerHTML = '';
+
+        let totalValue = 0;
+        let totalCost = 0;
+
+        holdings.forEach((item, index) => {
+            const units = Number(item.units) || 0;
+            const price = Number(item.price) || 0;
+            const bookCost = Number(item.bookCost) || 0;
+
+            const currentValue = units * price;
+            const pnl = currentValue - bookCost;
+            const pnlPercent = bookCost > 0 ? (pnl / bookCost) * 100 : 0;
+
+            totalValue += currentValue;
+            totalCost += bookCost;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${item.ticker || ''}</strong></td>
+                <td>${item.name || ''}</td>
+                <td>${item.boughtDate || 'N/A'}</td>
+                <td>${units}</td>
+                <td>£${bookCost.toFixed(2)}</td>
+                <td>£${price.toFixed(4)}</td>
+                <td>£${currentValue.toFixed(2)}</td>
+                <td class="${pnl >= 0 ? 'positive' : 'negative'}">£${pnl.toFixed(2)}</td>
+                <td class="${pnl >= 0 ? 'positive' : 'negative'}">${pnlPercent.toFixed(2)}%</td>
+                <td><button class="btn-action btn-danger" onclick="deleteTicker(${index})">🗑️</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        document.getElementById('total-val').innerText = `£${totalValue.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+        document.getElementById('total-cost').innerText = `£${totalCost.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+        
+        const totalReturn = totalValue - totalCost;
+        const totalReturnPercent = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+        const returnElem = document.getElementById('total-return');
+        returnElem.innerText = `£${totalReturn.toFixed(2)} (${totalReturnPercent.toFixed(2)}%)`;
+        returnElem.className = `card-value ${totalReturn >= 0 ? 'positive' : 'negative'}`;
+
+        document.getElementById('asset-count').innerText = `${holdings.length} Positions`;
+
+        saveData();
+        updateCharts();
+    }
+
+    function deleteTicker(index) {
+        holdings.splice(index, 1);
+        renderTable();
+    }
+
+    function resetDefaultPortfolio() {
+        localStorage.removeItem('jtg_portfolio');
+        holdings = JSON.parse(JSON.stringify(defaultHoldings));
+        renderTable();
+        showStatus('🔄 Reset to default data', 'info');
+    }
+
+    function toggleTheme() {
+        const currentTheme = document.body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+    }
+
+    function saveData() {
+        localStorage.setItem('jtg_portfolio', JSON.stringify(holdings));
+    }
+
+    function exportJSON() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(holdings, null, 2));
+        const anchor = document.createElement('a');
+        anchor.setAttribute("href", dataStr);
+        anchor.setAttribute("download", "portfolio.json");
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+    }
+
+    function importJSON(event) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (Array.isArray(data)) {
+                    holdings = data;
+                    renderTable();
+                    showStatus('✅ Imported successfully', 'success');
+                }
+            } catch (err) {
+                showStatus('⚠️ Invalid JSON', 'error');
+            }
+        };
+        reader.readAsText(event.target.files[0]);
+    }
+
+    window.onload = () => {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) document.body.setAttribute('data-theme', savedTheme);
+        initCharts();
+        renderTable();
+    };
+</script>
+</body>
+</html>

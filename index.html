@@ -169,10 +169,72 @@
         const statusEl = document.getElementById('status-message');
         statusEl.textContent = message;
         statusEl.className = `status-message show ${type}`;
-        setTimeout(() => { statusEl.className = 'status-message'; }, 4000);
+        setTimeout(() => { statusEl.className = 'status-message'; }, 5000);
     }
 
-    // Safe Non-Blocking Aggregate Trajectory Calculation
+    // Live Price Fetcher using CORS Proxy & Yahoo Finance Endpoint
+    async function fetchSinglePrice(ticker) {
+        // Handle UK Mutual Funds vs Standard Equities quoted in pence vs pounds
+        const cleanTicker = encodeURIComponent(ticker.trim());
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Network error');
+        
+        const wrapperData = await response.json();
+        const data = JSON.parse(wrapperData.contents);
+
+        if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+            throw new Error(`Ticker ${ticker} not found`);
+        }
+
+        const meta = data.chart.result[0].meta;
+        let price = meta.regularMarketPrice;
+
+        // UK Stocks/Funds on London Stock Exchange (.L) are quoted in GBX (pence).
+        // If currency is GBp/GBX, convert to GBP (£) by dividing by 100.
+        if (meta.currency === 'GBp' || meta.currency === 'GBX') {
+            price = price / 100;
+        }
+
+        return price;
+    }
+
+    async function refreshPrices() {
+        const btn = document.getElementById('refresh-btn');
+        btn.disabled = true;
+        btn.innerText = '⏳ Updating...';
+        showStatus('Fetching live market prices from Yahoo Finance...', 'info');
+
+        let updatedCount = 0;
+        let errorCount = 0;
+
+        for (let i = 0; i < holdings.length; i++) {
+            try {
+                const livePrice = await fetchSinglePrice(holdings[i].ticker);
+                if (livePrice && !isNaN(livePrice)) {
+                    holdings[i].price = livePrice;
+                    updatedCount++;
+                }
+            } catch (err) {
+                console.warn(`Failed to update ${holdings[i].ticker}:`, err);
+                errorCount++;
+            }
+        }
+
+        btn.disabled = false;
+        btn.innerText = '🔄 Refresh Prices';
+
+        renderTable();
+
+        if (updatedCount > 0) {
+            showStatus(`Successfully updated ${updatedCount} asset prices.${errorCount > 0 ? ` (${errorCount} failed)` : ''}`, 'success');
+        } else {
+            showStatus('Failed to update prices. Check ticker symbols or network connection.', 'error');
+        }
+    }
+
     function calculateSafeTrajectory() {
         try {
             const currentTotalVal = holdings.reduce((sum, h) => sum + ((Number(h.units) || 0) * (Number(h.price) || 0)), 0);
@@ -187,7 +249,6 @@
                 const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 labels.push(date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }));
                 
-                // Safe linear interpolation to avoid infinite numeric scaling loops
                 const step = points > 1 ? (currentTotalVal - currentTotalCost) / (points - 1) : 0;
                 const interpolatedVal = currentTotalCost + (step * (points - 1 - i));
                 
@@ -206,16 +267,13 @@
         const allocCanvas = document.getElementById('allocationChart');
         if (!histCanvas || !allocCanvas) return;
 
-        const histCtx = histCanvas.getContext('2d');
-        const allocCtx = allocCanvas.getContext('2d');
-
-        historyChart = new Chart(histCtx, {
+        historyChart = new Chart(histCanvas.getContext('2d'), {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'Value (£)', data: [], borderColor: '#003153', backgroundColor: 'rgba(0, 49, 83, 0.1)', fill: true }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
 
-        allocationChart = new Chart(allocCtx, {
+        allocationChart = new Chart(allocCanvas.getContext('2d'), {
             type: 'doughnut',
             data: { labels: [], datasets: [{ data: [], backgroundColor: chartColors }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
@@ -227,12 +285,11 @@
     function updateCharts() {
         if (!historyChart || !allocationChart) return;
 
-        // Offload calculation to next frame to prevent browser freeze
         requestAnimationFrame(() => {
             const trajectory = calculateSafeTrajectory();
             historyChart.data.labels = trajectory.labels;
             historyChart.data.datasets[0].data = trajectory.data;
-            historyChart.update('none'); // Update without heavy animations
+            historyChart.update('none');
 
             allocationChart.data.labels = holdings.map(h => h.ticker || 'Asset');
             allocationChart.data.datasets[0].data = holdings.map(h => (Number(h.units) || 0) * (Number(h.price) || 0));
@@ -348,5 +405,6 @@
         renderTable();
     };
 </script>
+
 </body>
 </html>
